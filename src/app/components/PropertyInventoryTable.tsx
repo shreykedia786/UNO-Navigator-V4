@@ -31,8 +31,11 @@ export function PropertyInventoryTable() {
 
   const [suiteGdsRates, setSuiteGdsRates] = useState<number[]>(() => [...SUITE_GDS_BASELINE]);
   const [suiteBarRates, setSuiteBarRates] = useState<number[]>(() => [...SUITE_BAR_BASELINE]);
+  /** Indices where user committed a change (blur/Enter) that differs from baseline — orange highlight */
+  const [suiteGdsEditedCells, setSuiteGdsEditedCells] = useState<Set<number>>(new Set());
+  const [suiteBarEditedCells, setSuiteBarEditedCells] = useState<Set<number>>(new Set());
 
-  const updateSuiteGdsRate = (index: number, value: string) => {
+  const applySuiteGdsRate = (index: number, value: string) => {
     const n = parseSuiteRateInput(value);
     setSuiteGdsRates((prev) => {
       const next = [...prev];
@@ -41,13 +44,55 @@ export function PropertyInventoryTable() {
     });
   };
 
-  const updateSuiteBarRate = (index: number, value: string) => {
+  const applySuiteBarRate = (index: number, value: string) => {
     const n = parseSuiteRateInput(value);
     setSuiteBarRates((prev) => {
       const next = [...prev];
       next[index] = n;
       return next;
     });
+  };
+
+  const syncSuiteGdsEditedFlag = (index: number, value: string) => {
+    const n = parseSuiteRateInput(value);
+    setSuiteGdsEditedCells((prev) => {
+      const next = new Set(prev);
+      if (n !== SUITE_GDS_BASELINE[index]) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  };
+
+  const syncSuiteBarEditedFlag = (index: number, value: string) => {
+    const n = parseSuiteRateInput(value);
+    setSuiteBarEditedCells((prev) => {
+      const next = new Set(prev);
+      if (n !== SUITE_BAR_BASELINE[index]) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  };
+
+  /** Table: call on blur / after Enter (blur) */
+  const commitSuiteGdsCell = (index: number, value: string) => {
+    applySuiteGdsRate(index, value);
+    syncSuiteGdsEditedFlag(index, value);
+  };
+
+  const commitSuiteBarCell = (index: number, value: string) => {
+    applySuiteBarRate(index, value);
+    syncSuiteBarEditedFlag(index, value);
+  };
+
+  /** Drawer: keep chart in sync and mark edited when value ≠ baseline */
+  const updateSuiteGdsRateFromDrawer = (index: number, value: string) => {
+    applySuiteGdsRate(index, value);
+    syncSuiteGdsEditedFlag(index, value);
+  };
+
+  const updateSuiteBarRateFromDrawer = (index: number, value: string) => {
+    applySuiteBarRate(index, value);
+    syncSuiteBarEditedFlag(index, value);
   };
 
   // Listen for onboarding event to expand Standard Room
@@ -447,7 +492,7 @@ export function PropertyInventoryTable() {
                       <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[10px] font-normal text-[#666666]">Rates(EUR)</span>
                       </td>
-                      <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-[#e8f4f8]">
+                      <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[12px] font-normal text-[#333333]">315</span>
                       </td>
                       {[315, 315, 315, 315, 315, 315, 315, 315, 315, 350, 350, 350, 350].map((rate, idx) => (
@@ -582,10 +627,12 @@ export function PropertyInventoryTable() {
                       <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[10px] font-normal text-[#666666]">Rates(EUR)</span>
                       </td>
-                      {suiteGdsRates.map((rate, idx) => (
+                      {suiteGdsRates.map((rate, idx) => {
+                        const isEdited = suiteGdsEditedCells.has(idx);
+                        return (
                         <td
                           key={idx}
-                          className={`px-2 py-2 text-center border-r border-[#e0e0e0] ${idx === 0 ? 'bg-[#e8f4f8]' : 'bg-white'}`}
+                          className="px-2 py-2 text-center border-r border-[#e0e0e0] bg-white"
                         >
                           <input
                             type="text"
@@ -593,11 +640,23 @@ export function PropertyInventoryTable() {
                             autoComplete="off"
                             aria-label={`Suite GDS rate ${dates[idx]?.day} ${dates[idx]?.date} ${dates[idx]?.month}`}
                             value={rate === 0 ? '' : String(rate)}
-                            onChange={(e) => updateSuiteGdsRate(idx, e.target.value)}
-                            className="mx-auto block w-[3.25rem] h-7 text-center text-[11px] text-[#333333] border border-[#d0d0d0] rounded-full bg-white tabular-nums"
+                            onChange={(e) => applySuiteGdsRate(idx, e.target.value)}
+                            onBlur={(e) => commitSuiteGdsCell(idx, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className={`mx-auto block w-[3.25rem] h-7 text-center text-[11px] rounded-full tabular-nums border ${
+                              isEdited
+                                ? 'border-orange-400 text-orange-700 bg-orange-50'
+                                : 'border-[#d0d0d0] text-[#333333] bg-white'
+                            }`}
                           />
                         </td>
-                      ))}
+                        );
+                      })}
                     </tr>
 
                     {expandedRatePlans.has('suite-gds-special') && (
@@ -605,7 +664,7 @@ export function PropertyInventoryTable() {
                         dates={dates}
                         rates={suiteGdsRates}
                         competitorBaseRates={SUITE_GDS_BASELINE}
-                        onYourRatesChange={updateSuiteGdsRate}
+                        onYourRatesChange={updateSuiteGdsRateFromDrawer}
                         getCompetitorRates={getCompetitorRatesForDate}
                         showLegend={true}
                         roomType="Suite"
@@ -635,7 +694,9 @@ export function PropertyInventoryTable() {
                       <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[10px] font-normal text-[#666666]">Rates(EUR)</span>
                       </td>
-                      {suiteBarRates.map((rate, idx) => (
+                      {suiteBarRates.map((rate, idx) => {
+                        const isEdited = suiteBarEditedCells.has(idx);
+                        return (
                         <td key={idx} className="px-2 py-2 text-center border-r border-[#e0e0e0] bg-white">
                           <input
                             type="text"
@@ -643,11 +704,23 @@ export function PropertyInventoryTable() {
                             autoComplete="off"
                             aria-label={`Suite BAR rate ${dates[idx]?.day} ${dates[idx]?.date} ${dates[idx]?.month}`}
                             value={rate === 0 ? '' : String(rate)}
-                            onChange={(e) => updateSuiteBarRate(idx, e.target.value)}
-                            className="mx-auto block w-[3.25rem] h-7 text-center text-[11px] text-[#333333] border border-[#d0d0d0] rounded-full bg-white tabular-nums"
+                            onChange={(e) => applySuiteBarRate(idx, e.target.value)}
+                            onBlur={(e) => commitSuiteBarCell(idx, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className={`mx-auto block w-[3.25rem] h-7 text-center text-[11px] rounded-full tabular-nums border ${
+                              isEdited
+                                ? 'border-orange-400 text-orange-700 bg-orange-50'
+                                : 'border-[#d0d0d0] text-[#333333] bg-white'
+                            }`}
                           />
                         </td>
-                      ))}
+                        );
+                      })}
                     </tr>
 
                     {expandedRatePlans.has('suite-bar') && (
@@ -655,7 +728,7 @@ export function PropertyInventoryTable() {
                         dates={dates}
                         rates={suiteBarRates}
                         competitorBaseRates={SUITE_BAR_BASELINE}
-                        onYourRatesChange={updateSuiteBarRate}
+                        onYourRatesChange={updateSuiteBarRateFromDrawer}
                         getCompetitorRates={getCompetitorRatesForDate}
                         showLegend={true}
                         roomType="Suite"
@@ -736,7 +809,7 @@ export function PropertyInventoryTable() {
                       <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[10px] font-normal text-[#666666]">Rates(EUR)</span>
                       </td>
-                      <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-[#e8f4f8]">
+                      <td className="px-3 py-2.5 text-center border-r border-[#e0e0e0] bg-white">
                         <span className="text-[12px] font-normal text-[#333333]">355</span>
                       </td>
                       {[358, 360, 362, 365, 368, 370, 372, 375, 378, 380, 382, 385, 388].map((rate, idx) => (
