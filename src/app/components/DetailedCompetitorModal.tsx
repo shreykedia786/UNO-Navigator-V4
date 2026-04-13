@@ -320,13 +320,6 @@ export function DetailedCompetitorModal({
                   Your Rates
                 </td>
                 {visibleRates.map((rate, idx) => {
-                  // Get all competitor rates for this date
-                  const competitorRatesForDate = competitorRatesMatrix[idx].filter(r => r !== null) as number[];
-                  const actualMinMax = actualMinMaxPerDate[idx];
-                  
-                  // Check if your rate is highest or lowest
-                  const isHighestRate = rate > 0 && actualMinMax.max !== null && rate > actualMinMax.max;
-                  const isLowestRate = rate > 0 && actualMinMax.min !== null && rate < actualMinMax.min;
                   const globalIdx = dateOffset + idx;
 
                   return (
@@ -339,16 +332,10 @@ export function DetailedCompetitorModal({
                           aria-label={`Your rate ${visibleDates[idx]?.day} ${visibleDates[idx]?.date} ${visibleDates[idx]?.month}`}
                           value={rate === 0 ? '' : String(rate)}
                           onChange={(e) => onYourRateChange(globalIdx, e.target.value)}
-                          className={`mx-auto block w-[3.25rem] h-7 text-center text-[11px] border border-[#d0d0d0] rounded-full bg-white tabular-nums font-semibold ${
-                            isHighestRate ? 'text-[#4caf50]' : isLowestRate ? 'text-[#f44336]' : 'text-[#333333]'
-                          }`}
+                          className="mx-auto block w-[3.25rem] h-7 text-center text-[11px] border border-[#d0d0d0] rounded-full bg-white tabular-nums font-semibold text-[#333333]"
                         />
                       ) : rate === 0 || !rate ? (
                         <span className="text-gray-400 font-normal">Sold Out</span>
-                      ) : isHighestRate ? (
-                        <span className="text-[#4caf50] font-bold">€{rate}</span>
-                      ) : isLowestRate ? (
-                        <span className="text-[#f44336] font-bold">€{rate}</span>
                       ) : (
                         <span className="text-[#333333]">€{rate}</span>
                       )}
@@ -675,7 +662,7 @@ function ParityAnalysisContent({
                 {rate === 0 || !rate ? (
                   <span className="text-gray-400 font-normal">Sold Out</span>
                 ) : (
-                  <span className="text-[#2196F3]">€{rate}</span>
+                  <span className="text-[#333333]">€{rate}</span>
                 )}
               </td>
             ))}
