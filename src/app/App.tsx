@@ -40,14 +40,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5]">
-      <div className="w-[1440px] mx-auto">
-        <Header />
-      </div>
-      <div className="flex justify-center mt-6">
-        <div className="w-[1340px]">
-          <PropertyInventoryTable />
-        </div>
+    <div className="min-h-screen bg-[#f5f5f5] w-full">
+      {/* Header bars (main nav, links, filters, status) span full browser width */}
+      <Header />
+      <div className="w-full max-w-[1440px] mx-auto px-[50px] mt-6">
+        <PropertyInventoryTable />
       </div>
       
       {/* Onboarding Tour */}
