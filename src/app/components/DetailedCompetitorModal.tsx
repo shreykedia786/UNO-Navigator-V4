@@ -630,15 +630,15 @@ function ParityAnalysisContent({
               </th>
             ))}
           </tr>
-          {/* Parity Score Row */}
-          <tr className="border-b-2 border-[#e0e0e0]">
-            <th className="px-3 py-2 border-r border-[#e0e0e0] bg-[#f5f5f5]" colSpan={3}>
+          {/* Daily overall parity % — light neutral band vs date row (#f5f5f5), distinct from Your Rates blue */}
+          <tr className="border-b-2 border-[#d4d8de] bg-[#e2e5ea]">
+            <th className="px-3 py-2 border-r border-[#d4d8de] bg-[#e2e5ea]" colSpan={3}>
               <div className="text-left text-[11px] font-semibold text-[#333333]">Overall Parity %</div>
             </th>
             {visibleDates.map((date, idx) => {
               const parityPercent = getDateParityPercentage(idx);
               return (
-                <th key={idx} className="px-2 py-2 border-r border-[#e0e0e0] bg-[#f5f5f5]">
+                <th key={idx} className="px-2 py-2 border-r border-[#d4d8de] bg-[#e2e5ea]">
                   <div className="text-[12px] text-[#333333] font-semibold">
                     {parityPercent}%
                   </div>
@@ -681,16 +681,19 @@ function ParityAnalysisContent({
                   </div>
                 </td>
 
-                {/* Win/Meet/Loss Bar */}
-                <td className="px-2 py-3 border-r border-[#e0e0e0] bg-white">
-                  <div className="flex h-6 rounded overflow-hidden relative">
+                {/* Win/Meet/Loss — flat colors, single row; % inside segment when wide enough */}
+                <td className="border-r border-[#e0e0e0] bg-white px-2 py-2.5">
+                  <div
+                    className="flex h-5 overflow-hidden rounded border border-[#e8e8e8]"
+                    title={`Win ${Math.round(distribution.winPercent)}% · Meet ${Math.round(distribution.meetPercent)}% · Loss ${Math.round(distribution.lossPercent)}%`}
+                  >
                     {distribution.winPercent > 0 && (
                       <div
-                        className="bg-[#f97316] flex items-center justify-center relative"
+                        className="flex min-w-0 items-center justify-center bg-[#f97316]"
                         style={{ width: `${distribution.winPercent}%` }}
                       >
                         {distribution.winPercent >= 10 && (
-                          <span className="text-[9px] font-semibold text-white whitespace-nowrap">
+                          <span className="text-[9px] font-semibold tabular-nums text-white">
                             {Math.round(distribution.winPercent)}%
                           </span>
                         )}
@@ -698,11 +701,11 @@ function ParityAnalysisContent({
                     )}
                     {distribution.meetPercent > 0 && (
                       <div
-                        className="bg-[#22c55e] flex items-center justify-center relative"
+                        className="flex min-w-0 items-center justify-center bg-[#22c55e]"
                         style={{ width: `${distribution.meetPercent}%` }}
                       >
                         {distribution.meetPercent >= 10 && (
-                          <span className="text-[9px] font-semibold text-white whitespace-nowrap">
+                          <span className="text-[9px] font-semibold tabular-nums text-white">
                             {Math.round(distribution.meetPercent)}%
                           </span>
                         )}
@@ -710,11 +713,11 @@ function ParityAnalysisContent({
                     )}
                     {distribution.lossPercent > 0 && (
                       <div
-                        className="bg-[#ef4444] flex items-center justify-center relative"
+                        className="flex min-w-0 items-center justify-center bg-[#ef4444]"
                         style={{ width: `${distribution.lossPercent}%` }}
                       >
                         {distribution.lossPercent >= 10 && (
-                          <span className="text-[9px] font-semibold text-white whitespace-nowrap">
+                          <span className="text-[9px] font-semibold tabular-nums text-white">
                             {Math.round(distribution.lossPercent)}%
                           </span>
                         )}
@@ -774,31 +777,38 @@ function ParityAnalysisContent({
                       onMouseEnter={() => isLoss && setHoveredCell({ channelIdx, dateIdx })}
                       onMouseLeave={() => setHoveredCell(null)}
                     >
-                      {/* Tooltip for Loss cells */}
+                      {/* Tooltip for Loss cells — border triangle sits flush under rounded panel (no detached rotate-45 square) */}
                       {isLoss && isHovered && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
-                          <div className="bg-[#1a1d2e] text-white text-[10px] rounded-lg px-3 py-2.5 whitespace-nowrap shadow-xl">
-                            <div className="font-semibold mb-1.5 pb-1.5 border-b border-gray-700">
-                              {channelName}
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2">
+                          <div className="relative">
+                            <div className="whitespace-nowrap rounded-lg bg-[#1a1d2e] px-3 py-2.5 text-[10px] text-white shadow-xl">
+                              <div className="mb-1.5 border-b border-gray-700 pb-1.5 font-semibold">
+                                {channelName}
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-gray-400">Your Rate:</span>
+                                  <span className="font-semibold">€{myRate}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-gray-400">Channel Rate:</span>
+                                  <span className="font-semibold">€{cellDisplay.rate}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 border-t border-gray-700 pt-1">
+                                  <span className="text-gray-400">Loss:</span>
+                                  <span className="font-semibold text-[#ef4444]">
+                                    €{lossAmount} ({lossPercent}%)
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <div className="flex justify-between gap-4">
-                                <span className="text-gray-400">Your Rate:</span>
-                                <span className="font-semibold">€{myRate}</span>
-                              </div>
-                              <div className="flex justify-between gap-4">
-                                <span className="text-gray-400">Channel Rate:</span>
-                                <span className="font-semibold">€{cellDisplay.rate}</span>
-                              </div>
-                              <div className="flex justify-between gap-4 pt-1 border-t border-gray-700">
-                                <span className="text-gray-400">Loss:</span>
-                                <span className="font-semibold text-[#ef4444]">€{lossAmount} ({lossPercent}%)</span>
-                              </div>
+                            <div
+                              className="absolute left-1/2 top-full -translate-x-1/2"
+                              style={{ marginTop: '-1px' }}
+                              aria-hidden
+                            >
+                              <div className="h-0 w-0 border-x-[7px] border-t-[8px] border-x-transparent border-t-[#1a1d2e]" />
                             </div>
-                          </div>
-                          {/* Tooltip arrow */}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
-                            <div className="w-2 h-2 bg-[#1a1d2e] rotate-45"></div>
                           </div>
                         </div>
                       )}
