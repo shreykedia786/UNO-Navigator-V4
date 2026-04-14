@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { X, ArrowRight, ArrowLeft, Sparkles, ChevronRight } from 'lucide-react';
+import {
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  ChevronRight,
+  BarChart3,
+  Scale
+} from 'lucide-react';
 import { LegendIconMax, LegendIconMin, LegendIconMyRate } from './CompetitorChartLegendIcons';
 
 interface OnboardingStep {
@@ -15,7 +23,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Unlock Smarter Pricing Insights',
-    description: 'We\'ve introduced powerful new tools to help you stay competitive and maintain rate consistency across channels.',
+    description: 'Understand your pricing and stay competitive across channels.',
     targetSelector: '', // Centered modal
     position: 'bottom',
     highlightPadding: 0
@@ -47,7 +55,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: 'drawer-preview',
     title: 'View Detailed Analysis',
-    description: 'Click "View Details" to explore:',
+    description: 'Opens the panel with two tabs—Competitor Rate Analysis and Parity Analysis.',
     targetSelector: '[data-tour="view-details-button"]',
     position: 'right',
     highlightPadding: 8
@@ -64,6 +72,8 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const [arrowPosition, setArrowPosition] = useState({ top: 0 });
+  /** When true, pointer is on the left edge of the tooltip (tooltip sits to the right of the target). When false, tooltip flipped left of target — pointer on right edge. */
+  const [tooltipArrowOnLeft, setTooltipArrowOnLeft] = useState(true);
   const [highlightRect, setHighlightRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [isVisible, setIsVisible] = useState(false);
 
@@ -75,14 +85,16 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
   const getTooltipWidth = (stepIndex: number) => {
     if (stepIndex === 2) return 332; // Competitor chart — same grid width as parity
     if (stepIndex === 3) return 332;
+    if (stepIndex === 4) return 332; // Drawer preview — aligned with chart/parity cards
     return 360;
   };
 
   const getTooltipHeight = () => {
-    if (currentStep === 0) return 280;
+    if (currentStep === 0) return 460;
     if (currentStep === 1) return 300;
     if (currentStep === 2) return 300; // Horizontal 3-col — shorter for small viewports / CTAs
     if (currentStep === 3) return 340;
+    if (currentStep === 4) return 335; // Step 5 — estimate for viewport clamp (larger → stronger lift when near bottom)
     return 260;
   };
 
@@ -150,14 +162,16 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
         top = currentHighlightRect.top - tooltipHeight - padding;
         left = currentHighlightRect.left + currentHighlightRect.width / 2 - tooltipWidth / 2;
         break;
-      case 'right':
+      case 'right': {
         // Check if tooltip would overflow on the right
         const rightPosition = currentHighlightRect.right + padding;
         if (rightPosition + tooltipWidth > window.innerWidth - 20) {
-          // Position on the left instead
+          // Tooltip on the left of the target — arrow must sit on the right edge of the tooltip
           left = currentHighlightRect.left - tooltipWidth - padding;
+          setTooltipArrowOnLeft(false);
         } else {
           left = rightPosition;
+          setTooltipArrowOnLeft(true);
         }
 
         // Calculate ideal position - center the arrow on the highlighted element
@@ -171,22 +185,24 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
         if (currentStep === 2 || currentStep === 3) {
           idealTop = Math.min(idealTop, 330);
         }
-
+        // Step 5: keep tooltip higher so footer CTAs stay on-screen on small viewports (arrow still follows highlightCenter − top)
         if (currentStep === 4) {
-          idealTop = idealTop - 100;
+          idealTop = Math.min(idealTop, 228);
         }
 
         // Apply the ideal position with bounds checking
         top = idealTop;
 
-        // Ensure it doesn't go off screen
-        if (top + tooltipHeight > window.innerHeight - 20) {
-          top = window.innerHeight - tooltipHeight - 20;
+        // Ensure it doesn't go off screen (larger bottom inset on step 5 so Skip/Finish stay above fold / home indicator)
+        const bottomInset = currentStep === 4 ? 72 : 20;
+        if (top + tooltipHeight > window.innerHeight - bottomInset) {
+          top = window.innerHeight - tooltipHeight - bottomInset;
         }
         if (top < 40) {
           top = 40;
         }
         break;
+      }
       case 'left':
         left = currentHighlightRect.left - tooltipWidth - padding;
 
@@ -221,13 +237,8 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
       if (currentStep === 3) {
         arrowTop += 28;
       }
-      // Drawer step — align to View Details control
-      if (currentStep === 4) {
-        arrowTop += 75;
-      }
-
-      // Constrain arrow to the white body; step 2 (chevron) uses a smaller floor so the pointer can align with a small target
-      const minArrowTop = currentStep === 1 ? 72 : 95;
+      // Constrain arrow to the white body; step 2 (chevron) & step 5 (small CTA) use a lower floor
+      const minArrowTop = currentStep === 1 || currentStep === 4 ? 72 : 95;
       const maxArrowTop = tooltipHeight - 30;
       const constrainedArrowTop = Math.max(minArrowTop, Math.min(arrowTop, maxArrowTop));
 
@@ -312,7 +323,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
       {/* Tooltip */}
       <div
         className={`fixed z-[10000] bg-white rounded-xl transition-all duration-300 ${
-          currentStep === 2 || currentStep === 3
+          currentStep === 2 || currentStep === 3 || currentStep === 4
             ? 'shadow-[0_22px_50px_-12px_rgba(15,23,42,0.18)] ring-1 ring-[#2753eb]/12'
             : 'shadow-2xl ring-1 ring-black/[0.04]'
         }`}
@@ -322,7 +333,8 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
                 top: '50%',
                 left: '50%',
                 transform: isVisible ? 'translate(-50%, -50%) scale(1)' : 'translate(-50%, -50%) scale(0.95)',
-                width: '420px',
+                width: currentStep === 0 ? 'min(460px, calc(100vw - 2rem))' : '420px',
+                maxWidth: currentStep === 0 ? '460px' : undefined,
                 opacity: isVisible ? 1 : 0
               }
             : {
@@ -334,7 +346,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
               }
         }
       >
-        {/* Header */}
+        {/* Header — same blue bar as all other onboarding steps */}
         <div className="relative bg-gradient-to-r from-[#2753eb] to-[#4f46e5] text-white px-6 py-4 rounded-t-xl">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -358,8 +370,12 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
         </div>
 
         {/* Content */}
-        <div className="px-6 py-5">
-          {step.description ? (
+        <div
+          className={`px-6 ${
+            currentStep === 0 ? 'py-5 pb-5' : currentStep === 4 ? 'pt-4 pb-4' : 'py-5'
+          }`}
+        >
+          {currentStep !== 0 && step.description ? (
             <p
               className={`text-[13px] leading-relaxed ${currentStep === 1 ? 'text-gray-800 font-medium' : 'text-gray-700'}`}
             >
@@ -367,31 +383,45 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
             </p>
           ) : null}
 
-          {/* Visual Illustration for Welcome */}
+          {/* Welcome — feature spotlight (step 1 of tour) */}
           {currentStep === 0 && (
-            <div className="mt-4 space-y-3">
-              <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-2">
-                  
-                  <div>
-                    <div className="text-[11px] font-bold text-blue-900 mb-1">Competitor Rate Analysis</div>
-                    <p className="text-[10px] text-gray-700 leading-relaxed">
-                      Compare your pricing with competitors and spot revenue opportunities.
-                    </p>
+            <div className="space-y-4">
+              <p className="text-[13px] leading-relaxed text-slate-600">{step.description}</p>
+              <div className="grid gap-3">
+                <div className="group rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:border-[#2753eb]/35 hover:shadow-md">
+                  <div className="flex gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2753eb] ring-1 ring-blue-200/70">
+                      <BarChart3 className="h-5 w-5" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[13px] font-bold leading-snug text-slate-900">
+                        Competitor rate insights
+                      </h4>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                        See how your rates compare with competitors across dates.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="group rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:border-emerald-500/30 hover:shadow-md">
+                  <div className="flex gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80">
+                      <Scale className="h-5 w-5" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[13px] font-bold leading-snug text-slate-900">
+                        Channel parity insights
+                      </h4>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                        Track where you win, match, or lose across OTAs.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                <div className="flex items-start gap-2">
-                  
-                  <div>
-                    <div className="text-[11px] font-bold text-green-900 mb-1">Channel Parity Analysis</div>
-                    <p className="text-[10px] text-gray-700 leading-relaxed">
-                      Monitor OTA rates and maintain consistency across all channels.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <p className="text-center text-[10px] leading-snug text-slate-400">
+                ~1 minute · {ONBOARDING_STEPS.length} quick steps
+              </p>
             </div>
           )}
 
@@ -479,34 +509,42 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
             </div>
           )}
 
-          {/* Visual Illustration for Drawer Preview */}
+          {/* Step 5 of 5 — matches DetailedCompetitorModal tabs (compact for small viewports) */}
           {currentStep === 4 && (
-            <div className="mt-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-              <ul className="space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-[11px] text-blue-600 mt-0.5">•</span>
-                  <p className="text-[11px] text-gray-700 leading-relaxed">
-                    <strong>Rate comparison</strong> with each competitor
-                  </p>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[11px] text-blue-600 mt-0.5">•</span>
-                  <p className="text-[11px] text-gray-700 leading-relaxed">
-                    <strong>Parity</strong> across connected channels (OTAs)
-                  </p>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[11px] text-blue-600 mt-0.5">•</span>
-                  <p className="text-[11px] text-gray-700 leading-relaxed">
-                    <strong>Win / Meet / Loss</strong> performance by date
-                  </p>
-                </li>
-              </ul>
+            <div className="mt-3">
+              <div className="rounded-xl border border-slate-200/90 bg-white p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <div className="space-y-1.5">
+                  <div className="flex gap-2.5 rounded-lg border border-slate-100 bg-slate-50/70 px-2 py-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-[#2753eb] ring-1 ring-blue-100">
+                      <BarChart3 className="h-3.5 w-3.5" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-slate-900 leading-tight">Competitor Rate Analysis</p>
+                      <p className="mt-0.5 text-[9px] leading-snug text-slate-600">
+                        Track pricing against individual competitors and avg. compset rates.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2.5 rounded-lg border border-slate-100 bg-slate-50/70 px-2 py-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                      <Scale className="h-3.5 w-3.5" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-slate-900 leading-tight">Parity Analysis</p>
+                      <p className="mt-0.5 text-[9px] leading-snug text-slate-600">
+                        Quickly see where you win, meet, or lose with detailed OTA-level insights.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Progress indicators */}
-          <div className="flex items-center gap-1.5 mt-5 mb-4">
+          <div
+            className={`flex items-center gap-1.5 mb-4 ${currentStep === 4 ? 'mt-4' : 'mt-5'}`}
+          >
             {ONBOARDING_STEPS.map((_, index) => (
               <div
                 key={index}
@@ -568,9 +606,18 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
             }}
           />
         )}
-        {!isCenterModal && step.position === 'right' && (
+        {!isCenterModal && step.position === 'right' && tooltipArrowOnLeft && (
           <div
             className="absolute -left-2 h-4 w-4 bg-white"
+            style={{
+              top: arrowPosition.top,
+              transform: 'translateY(-50%) rotate(45deg)'
+            }}
+          />
+        )}
+        {!isCenterModal && step.position === 'right' && !tooltipArrowOnLeft && (
+          <div
+            className="absolute -right-2 h-4 w-4 bg-white"
             style={{
               top: arrowPosition.top,
               transform: 'translateY(-50%) rotate(45deg)'
