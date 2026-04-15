@@ -388,7 +388,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
             <div className="space-y-4">
               <p className="text-[13px] leading-relaxed text-slate-600">{step.description}</p>
               <div className="grid gap-3">
-                <div className="group rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:border-[#2753eb]/35 hover:shadow-md">
+                <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
                   <div className="flex gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2753eb] ring-1 ring-blue-200/70">
                       <BarChart3 className="h-5 w-5" strokeWidth={2} />
@@ -403,7 +403,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
                     </div>
                   </div>
                 </div>
-                <div className="group rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:border-emerald-500/30 hover:shadow-md">
+                <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
                   <div className="flex gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80">
                       <Scale className="h-5 w-5" strokeWidth={2} />
