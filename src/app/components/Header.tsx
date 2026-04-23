@@ -2,7 +2,17 @@ import { ChevronDown, AlertCircle } from 'lucide-react';
 import svgPaths from "../../imports/svg-n3t9v38tfc";
 import imgLogo from "figma:asset/036db285069a2b8b94cc4ad3c602ba0af3a2f1fe.png";
 
-export function Header() {
+type HeaderProps = {
+  /** When set, clicking the UNO logo runs this (e.g. return to Navigator access gate). */
+  onUnoLogoClick?: () => void;
+};
+
+export function Header({ onUnoLogoClick }: HeaderProps) {
+  const logoInner = (
+    <div className="h-[23px] w-[71px] shadow-[0px_0px_1.6px_0px_white]">
+      <img alt="UNO Logo" className="size-full object-cover" src={imgLogo} />
+    </div>
+  );
 
   return (
     <>
@@ -19,11 +29,20 @@ export function Header() {
             </div>
           </div>
 
-          {/* Logo */}
+          {/* Logo — optional home to Navigator setup (two CTAs) */}
           <div className="flex items-center justify-center p-[10px]">
-            <div className="h-[23px] w-[71px] shadow-[0px_0px_1.6px_0px_white]">
-              <img alt="UNO Logo" className="size-full object-cover" src={imgLogo} />
-            </div>
+            {onUnoLogoClick ? (
+              <button
+                type="button"
+                onClick={onUnoLogoClick}
+                className="rounded-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[#2753eb] focus-visible:ring-offset-2 focus-visible:ring-offset-[#d9dbe0]"
+                aria-label="Return to Navigator setup"
+              >
+                {logoInner}
+              </button>
+            ) : (
+              logoInner
+            )}
           </div>
 
           <div className="p-[10px] h-[48px]" />

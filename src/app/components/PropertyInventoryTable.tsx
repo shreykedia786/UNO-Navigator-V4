@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, ChevronLeft, Lock, Zap } from 'lucide-react';
 import svgPaths from "../../imports/svg-eqrmta6hqq";
 import { RateCandlestickChart, type RoomLevelCompetitorRates } from './RateCandlestickChart';
+import { NavigatorIntelligenceLockedRow } from './NavigatorIntelligenceLockedRow';
 
 interface DateCell {
   day: string;
@@ -85,7 +86,19 @@ function parseSuiteRateInput(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function PropertyInventoryTable() {
+export function PropertyInventoryTable({
+  navigatorIntelligenceUnlocked = true,
+  onRequestNavigatorTrial,
+  lockedNavigatorPreviewDismissed = false,
+  onDismissLockedNavigatorPreview
+}: {
+  /** When false, competitor / parity chart rows show an upsell to Navigator trial. */
+  navigatorIntelligenceUnlocked?: boolean;
+  onRequestNavigatorTrial?: () => void;
+  /** Limited flow only: user hid the locked Navigator preview block for all room types. */
+  lockedNavigatorPreviewDismissed?: boolean;
+  onDismissLockedNavigatorPreview?: () => void;
+} = {}) {
   const [isPropertyDetailsExpanded, setIsPropertyDetailsExpanded] = useState(false);
   const [isStandardRoomExpanded, setIsStandardRoomExpanded] = useState(false);
   const [isSuiteExpanded, setIsSuiteExpanded] = useState(false);
@@ -514,15 +527,21 @@ export function PropertyInventoryTable() {
                       className="flex items-center gap-2 w-full text-left"
                       data-tour="room-chevron"
                     >
-                      {isStandardRoomExpanded ? (
-                        <svg className="w-[14px] h-[14px]" fill="none" viewBox="0 0 14 14">
-                          <path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="#666666" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.16667" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
-                          <path d="M6 12L10 8L6 4" stroke="#666666" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
-                        </svg>
-                      )}
+                      <span
+                        className="flex shrink-0 items-center justify-center"
+                        data-tour="room-chevron-icon"
+                        aria-hidden
+                      >
+                        {isStandardRoomExpanded ? (
+                          <svg className="w-[14px] h-[14px]" fill="none" viewBox="0 0 14 14">
+                            <path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="#666666" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.16667" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
+                            <path d="M6 12L10 8L6 4" stroke="#666666" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
+                          </svg>
+                        )}
+                      </span>
                       <div>
                         <div className="text-[12px] font-semibold text-[#333333] leading-[18px]">Standard Room</div>
                         <div className="text-[10px] font-medium italic text-[#999999] leading-[15px]">STD</div>
@@ -542,17 +561,25 @@ export function PropertyInventoryTable() {
 
                 {isStandardRoomExpanded && (
                   <>
-                    <RateCandlestickChart
-                      dates={dates}
-                      rates={STANDARD_SYSTEM_CHEAPEST.rates}
-                      myRateMeta={STANDARD_SYSTEM_CHEAPEST.meta}
-                      getCompetitorRates={getCompetitorRatesForDate}
-                      showLegend={true}
-                      roomType="Standard Room"
-                      drawerInclusionPlanNames={DRAWER_INCLUSIONS_STANDARD}
-                      ratePlan="Room aggregate (cheapest rate plan per day)"
-                      events={events}
-                    />
+                    {navigatorIntelligenceUnlocked ? (
+                      <RateCandlestickChart
+                        dates={dates}
+                        rates={STANDARD_SYSTEM_CHEAPEST.rates}
+                        myRateMeta={STANDARD_SYSTEM_CHEAPEST.meta}
+                        getCompetitorRates={getCompetitorRatesForDate}
+                        showLegend={true}
+                        roomType="Standard Room"
+                        drawerInclusionPlanNames={DRAWER_INCLUSIONS_STANDARD}
+                        ratePlan="Room aggregate (cheapest rate plan per day)"
+                        events={events}
+                      />
+                    ) : lockedNavigatorPreviewDismissed ? null : (
+                      <NavigatorIntelligenceLockedRow
+                        dates={dates}
+                        onRequestTrial={() => onRequestNavigatorTrial?.()}
+                        onDismissPreview={onDismissLockedNavigatorPreview}
+                      />
+                    )}
 
                     {/* Club Only Special Rates */}
                     <tr className="border-b border-[#e0e0e0]">
@@ -695,19 +722,27 @@ export function PropertyInventoryTable() {
 
                 {isSuiteExpanded && (
                   <>
-                    <RateCandlestickChart
-                      dates={dates}
-                      rates={suiteRoomCheapest.rates}
-                      myRateMeta={suiteRoomCheapest.meta}
-                      getCompetitorRates={getCompetitorRatesForDate}
-                      competitorBaseRates={SUITE_ROOM_COMPETITOR_BASELINE}
-                      onYourRatesChange={updateSuiteCheapestFromDrawer}
-                      showLegend={true}
-                      roomType="Suite"
-                      drawerInclusionPlanNames={DRAWER_INCLUSIONS_SUITE}
-                      ratePlan="Room aggregate (cheapest rate plan per day)"
-                      events={events}
-                    />
+                    {navigatorIntelligenceUnlocked ? (
+                      <RateCandlestickChart
+                        dates={dates}
+                        rates={suiteRoomCheapest.rates}
+                        myRateMeta={suiteRoomCheapest.meta}
+                        getCompetitorRates={getCompetitorRatesForDate}
+                        competitorBaseRates={SUITE_ROOM_COMPETITOR_BASELINE}
+                        onYourRatesChange={updateSuiteCheapestFromDrawer}
+                        showLegend={true}
+                        roomType="Suite"
+                        drawerInclusionPlanNames={DRAWER_INCLUSIONS_SUITE}
+                        ratePlan="Room aggregate (cheapest rate plan per day)"
+                        events={events}
+                      />
+                    ) : lockedNavigatorPreviewDismissed ? null : (
+                      <NavigatorIntelligenceLockedRow
+                        dates={dates}
+                        onRequestTrial={() => onRequestNavigatorTrial?.()}
+                        onDismissPreview={onDismissLockedNavigatorPreview}
+                      />
+                    )}
 
                     {/* GDS Only Special Rates */}
                     <tr className="border-b border-[#e0e0e0]">
@@ -846,17 +881,25 @@ export function PropertyInventoryTable() {
 
                 {isDeluxeRoomExpanded && (
                   <>
-                    <RateCandlestickChart
-                      dates={dates}
-                      rates={DELUXE_ROOM_CHEAPEST.rates}
-                      myRateMeta={DELUXE_ROOM_CHEAPEST.meta}
-                      getCompetitorRates={getCompetitorRatesForDate}
-                      showLegend={true}
-                      roomType="Deluxe Room"
-                      drawerInclusionPlanNames={DRAWER_INCLUSIONS_DELUXE}
-                      ratePlan="Room aggregate (cheapest rate plan per day)"
-                      events={events}
-                    />
+                    {navigatorIntelligenceUnlocked ? (
+                      <RateCandlestickChart
+                        dates={dates}
+                        rates={DELUXE_ROOM_CHEAPEST.rates}
+                        myRateMeta={DELUXE_ROOM_CHEAPEST.meta}
+                        getCompetitorRates={getCompetitorRatesForDate}
+                        showLegend={true}
+                        roomType="Deluxe Room"
+                        drawerInclusionPlanNames={DRAWER_INCLUSIONS_DELUXE}
+                        ratePlan="Room aggregate (cheapest rate plan per day)"
+                        events={events}
+                      />
+                    ) : lockedNavigatorPreviewDismissed ? null : (
+                      <NavigatorIntelligenceLockedRow
+                        dates={dates}
+                        onRequestTrial={() => onRequestNavigatorTrial?.()}
+                        onDismissPreview={onDismissLockedNavigatorPreview}
+                      />
+                    )}
 
                     {/* Deluxe special rates */}
                     <tr className="border-b border-[#e0e0e0]">

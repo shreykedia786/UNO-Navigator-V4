@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   X,
   ArrowRight,
@@ -62,12 +62,43 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   }
 ];
 
+/** Not subscribed / limited demo: welcome + locked chart snapshot with hotspots. */
+const LIMITED_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    id: 'welcome-limited',
+    title: 'Navigator intelligence preview',
+    description:
+      "You're seeing a preview of competitor pricing and parity insights. Start your free trial from the top banner to unlock full access.",
+    targetSelector: '',
+    position: 'bottom',
+    highlightPadding: 0
+  },
+  {
+    id: 'expand-room-limited',
+    title: 'Expand this room',
+    description: 'Tap the chevron to open the row. You will see a Navigator snapshot with competitor rate comparison.',
+    targetSelector: '[data-tour="room-chevron-icon"]',
+    position: 'right',
+    highlightPadding: 6
+  }
+];
+
+export const ONBOARDING_STORAGE_KEYS = {
+  full: 'onboardingTourCompleted',
+  limited: 'onboardingLimitedTourCompleted'
+} as const;
+
+export type OnboardingTourVariant = 'full' | 'limited';
+
 interface OnboardingTourProps {
   onComplete: () => void;
   onStepChange?: (stepIndex: number) => void;
+  variant?: OnboardingTourVariant;
 }
 
-export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps) {
+const chartStyleTooltipIds = new Set(['competitor-graph', 'parity-colors', 'drawer-preview']);
+
+export function OnboardingTour({ onComplete, onStepChange, variant = 'full' }: OnboardingTourProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
@@ -77,24 +108,34 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
   const [highlightRect, setHighlightRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [isVisible, setIsVisible] = useState(false);
 
-  const step = ONBOARDING_STEPS[currentStep];
-  const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
-  const isCenterModal = !step.targetSelector; // Check if this should be a centered modal
+  const steps = useMemo(
+    () => (variant === 'limited' ? LIMITED_ONBOARDING_STEPS : ONBOARDING_STEPS),
+    [variant]
+  );
 
-  const getTooltipWidth = (stepIndex: number) => {
-    if (stepIndex === 2) return 332; // Competitor chart — same grid width as parity
-    if (stepIndex === 3) return 332;
-    if (stepIndex === 4) return 332; // Drawer preview — aligned with chart/parity cards
+  useEffect(() => {
+    setCurrentStep(0);
+    setIsVisible(false);
+  }, [variant]);
+
+  const step = steps[currentStep];
+  const isFirstStep = currentStep === 0;
+  const isLastStep = currentStep === steps.length - 1;
+  const isCenterModal = !step.targetSelector; // Check if this should be a centered modal
+  const isWelcomeStep = step.id === 'welcome' || step.id === 'welcome-limited';
+
+  const getTooltipWidth = (s: OnboardingStep) => {
+    if (s.id === 'competitor-graph' || s.id === 'parity-colors' || s.id === 'drawer-preview') return 332;
     return 360;
   };
 
   const getTooltipHeight = () => {
-    if (currentStep === 0) return 460;
-    if (currentStep === 1) return 300;
-    if (currentStep === 2) return 300; // Horizontal 3-col — shorter for small viewports / CTAs
-    if (currentStep === 3) return 340;
-    if (currentStep === 4) return 335; // Step 5 — estimate for viewport clamp (larger → stronger lift when near bottom)
+    if (isWelcomeStep) return step.id === 'welcome-limited' ? 430 : 460;
+    if (step.id === 'find-it') return 320;
+    if (step.id === 'expand-room-limited') return 220;
+    if (step.id === 'competitor-graph') return 300;
+    if (step.id === 'parity-colors') return 340;
+    if (step.id === 'drawer-preview') return 335;
     return 260;
   };
 
@@ -142,7 +183,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
 
   const calculatePosition = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
-    const tooltipWidth = getTooltipWidth(currentStep);
+    const tooltipWidth = getTooltipWidth(step);
     const tooltipHeight = getTooltipHeight();
     const padding = 20;
 
@@ -182,19 +223,18 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
 
         // Chart + parity share `rate-chart` — keep the same high placement so Next/CTAs stay in view on short viewports.
         // Do not push parity down; adjust the arrow only for parity (see arrowTop below).
-        if (currentStep === 2 || currentStep === 3) {
+        if (step.id === 'competitor-graph' || step.id === 'parity-colors') {
           idealTop = Math.min(idealTop, 330);
         }
-        // Step 5: keep tooltip higher so footer CTAs stay on-screen on small viewports (arrow still follows highlightCenter − top)
-        if (currentStep === 4) {
+        // Drawer step: keep tooltip higher so footer CTAs stay on-screen on small viewports
+        if (step.id === 'drawer-preview') {
           idealTop = Math.min(idealTop, 228);
         }
 
         // Apply the ideal position with bounds checking
         top = idealTop;
 
-        // Ensure it doesn't go off screen (larger bottom inset on step 5 so Skip/Finish stay above fold / home indicator)
-        const bottomInset = currentStep === 4 ? 72 : 20;
+        const bottomInset = step.id === 'drawer-preview' ? 72 : 20;
         if (top + tooltipHeight > window.innerHeight - bottomInset) {
           top = window.innerHeight - tooltipHeight - bottomInset;
         }
@@ -233,12 +273,11 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
       const highlightCenter = currentHighlightRect.top + currentHighlightRect.height / 2;
       let arrowTop = highlightCenter - top;
 
-      // Parity step (index 3): nudge arrow only — popup stays high for small screens; moving the card down hides CTAs.
-      if (currentStep === 3) {
+      if (step.id === 'parity-colors') {
         arrowTop += 28;
       }
-      // Constrain arrow to the white body; step 2 (chevron) & step 5 (small CTA) use a lower floor
-      const minArrowTop = currentStep === 1 || currentStep === 4 ? 72 : 95;
+      const minArrowTop =
+        step.id === 'find-it' || step.id === 'drawer-preview' || step.id === 'expand-room-limited' ? 72 : 95;
       const maxArrowTop = tooltipHeight - 30;
       const constrainedArrowTop = Math.max(minArrowTop, Math.min(arrowTop, maxArrowTop));
 
@@ -274,7 +313,8 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
     setIsVisible(false);
     setTimeout(() => {
       onComplete();
-      localStorage.setItem('onboardingTourCompleted', 'true');
+      const key = variant === 'limited' ? ONBOARDING_STORAGE_KEYS.limited : ONBOARDING_STORAGE_KEYS.full;
+      localStorage.setItem(key, 'true');
     }, 200);
   };
 
@@ -323,7 +363,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
       {/* Tooltip */}
       <div
         className={`fixed z-[10000] bg-white rounded-xl transition-all duration-300 ${
-          currentStep === 2 || currentStep === 3 || currentStep === 4
+          chartStyleTooltipIds.has(step.id)
             ? 'shadow-[0_22px_50px_-12px_rgba(15,23,42,0.18)] ring-1 ring-[#2753eb]/12'
             : 'shadow-2xl ring-1 ring-black/[0.04]'
         }`}
@@ -333,14 +373,14 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
                 top: '50%',
                 left: '50%',
                 transform: isVisible ? 'translate(-50%, -50%) scale(1)' : 'translate(-50%, -50%) scale(0.95)',
-                width: currentStep === 0 ? 'min(460px, calc(100vw - 2rem))' : '420px',
-                maxWidth: currentStep === 0 ? '460px' : undefined,
+                width: isWelcomeStep ? 'min(460px, calc(100vw - 2rem))' : '420px',
+                maxWidth: isWelcomeStep ? '460px' : undefined,
                 opacity: isVisible ? 1 : 0
               }
             : {
                 top: tooltipPosition.top,
                 left: tooltipPosition.left,
-                width: `${getTooltipWidth(currentStep)}px`,
+                width: `${getTooltipWidth(step)}px`,
                 opacity: isVisible ? 1 : 0,
                 transform: isVisible ? 'scale(1)' : 'scale(0.95)'
               }
@@ -356,7 +396,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
               <div>
                 <h3 className="text-[15px] font-bold leading-tight mb-1">{step.title}</h3>
                 <p className="text-[11px] text-white/80">
-                  Step {currentStep + 1} of {ONBOARDING_STEPS.length}
+                  Step {currentStep + 1} of {steps.length}
                 </p>
               </div>
             </div>
@@ -372,61 +412,94 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
         {/* Content */}
         <div
           className={`px-6 ${
-            currentStep === 0 ? 'py-5 pb-5' : currentStep === 4 ? 'pt-4 pb-4' : 'py-5'
+            isWelcomeStep ? 'py-5 pb-5' : step.id === 'drawer-preview' ? 'pt-4 pb-4' : 'py-5'
           }`}
         >
-          {currentStep !== 0 && step.description ? (
+          {!isWelcomeStep && step.description ? (
             <p
-              className={`text-[13px] leading-relaxed ${currentStep === 1 ? 'text-gray-800 font-medium' : 'text-gray-700'}`}
+              className={`text-[13px] leading-relaxed ${
+                step.id === 'find-it' || step.id === 'expand-room-limited' ? 'text-gray-800 font-medium' : 'text-gray-700'
+              }`}
             >
               {step.description}
             </p>
           ) : null}
 
-          {/* Welcome — feature spotlight (step 1 of tour) */}
-          {currentStep === 0 && (
+          {/* Welcome — feature spotlight */}
+          {isWelcomeStep && (
             <div className="space-y-4">
               <p className="text-[13px] leading-relaxed text-slate-600">{step.description}</p>
               <div className="grid gap-3">
-                <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
-                  <div className="flex gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2753eb] ring-1 ring-blue-200/70">
-                      <BarChart3 className="h-5 w-5" strokeWidth={2} />
+                {step.id === 'welcome-limited' ? (
+                  <>
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                      <div className="flex gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2753eb] ring-1 ring-blue-200/70">
+                          <BarChart3 className="h-5 w-5" strokeWidth={2} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] leading-relaxed text-slate-700">
+                            Compare your rates with competitors across dates to identify pricing gaps.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-[13px] font-bold leading-snug text-slate-900">
-                        Competitor rate insights
-                      </h4>
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                        See how your rates compare with competitors across dates.
-                      </p>
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                      <div className="flex gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80">
+                          <Scale className="h-5 w-5" strokeWidth={2} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] leading-relaxed text-slate-700">
+                            Track where you win, meet, or lose across OTAs.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
-                  <div className="flex gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80">
-                      <Scale className="h-5 w-5" strokeWidth={2} />
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                      <div className="flex gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#2753eb] ring-1 ring-blue-200/70">
+                          <BarChart3 className="h-5 w-5" strokeWidth={2} />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[13px] font-bold leading-snug text-slate-900">
+                            Competitor rate insights
+                          </h4>
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                            See how your rates compare with competitors across dates.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-[13px] font-bold leading-snug text-slate-900">
-                        Channel parity insights
-                      </h4>
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                        Track where you win, match, or lose across OTAs.
-                      </p>
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                      <div className="flex gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80">
+                          <Scale className="h-5 w-5" strokeWidth={2} />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[13px] font-bold leading-snug text-slate-900">
+                            Channel parity insights
+                          </h4>
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                            Track where you win, match, or lose across OTAs.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
               <p className="text-center text-[10px] leading-snug text-slate-400">
-                ~1 minute · {ONBOARDING_STEPS.length} quick steps
+                {steps.length <= 2 ? '~30 seconds' : '~1 minute'} · {steps.length} quick step{steps.length === 1 ? '' : 's'}
               </p>
             </div>
           )}
 
           {/* Parity legend — distinct from chart step: compact grid, flat fills, brand accent */}
-          {currentStep === 3 && (
+          {step.id === 'parity-colors' && (
             <div className="mt-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#2753eb] mb-2.5">
                 Parity grid
@@ -457,7 +530,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
           )}
 
           {/* Step 2: chevron target — minimal copy; spotlight + arrow aim at real chevron */}
-          {currentStep === 1 && (
+          {step.id === 'find-it' && (
             <div className="mt-4">
               <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
                 <div className="flex items-center gap-3 px-3 py-3">
@@ -478,8 +551,8 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
             </div>
           )}
 
-          {/* Step 3 of 5 — competitor chart: horizontal grid + SVGs matching RateCandlestickChart (spine, T-bars, blue dot + ties) */}
-          {currentStep === 2 && (
+          {/* Competitor chart: horizontal grid + SVGs matching RateCandlestickChart */}
+          {step.id === 'competitor-graph' && (
             <div className="mt-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#2753eb] mb-2">
                 Competitor range
@@ -511,7 +584,7 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
           )}
 
           {/* Step 5 of 5 — matches DetailedCompetitorModal tabs (compact for small viewports) */}
-          {currentStep === 4 && (
+          {step.id === 'drawer-preview' && (
             <div className="mt-3">
               <div className="rounded-xl border border-slate-200/90 bg-white p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                 <div className="space-y-1.5">
@@ -544,9 +617,9 @@ export function OnboardingTour({ onComplete, onStepChange }: OnboardingTourProps
 
           {/* Progress indicators */}
           <div
-            className={`flex items-center gap-1.5 mb-4 ${currentStep === 4 ? 'mt-4' : 'mt-5'}`}
+            className={`flex items-center gap-1.5 mb-4 ${step.id === 'drawer-preview' ? 'mt-4' : 'mt-5'}`}
           >
-            {ONBOARDING_STEPS.map((_, index) => (
+            {steps.map((_, index) => (
               <div
                 key={index}
                 className="h-1.5 flex-1 rounded-full transition-all duration-300"

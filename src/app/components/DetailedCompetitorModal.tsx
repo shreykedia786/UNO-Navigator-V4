@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, Globe, Info, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Info, X } from 'lucide-react';
 import {
   useCallback,
   useLayoutEffect,
@@ -86,7 +86,9 @@ function InsightHoverTooltip({
   triggerClassName,
   children,
   panelWidth = 260,
-  estimatedHeight = 230
+  estimatedHeight = 230,
+  visual = 'default',
+  headerEnd
 }: {
   title: string;
   dateLabel: string;
@@ -98,6 +100,10 @@ function InsightHoverTooltip({
   panelWidth?: number;
   /** Estimated tooltip height — improves flip above/below when content is tall. */
   estimatedHeight?: number;
+  /** Elevated = softer shadow, larger radius (parity / premium tooltips). */
+  visual?: 'default' | 'elevated';
+  /** Optional right column in the header (e.g. parity rate violation + label). */
+  headerEnd?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -177,7 +183,14 @@ function InsightHoverTooltip({
               transform: pos.placement === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
             }}
           >
-            <div className="relative rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left shadow-xl">
+            <div
+              className={cn(
+                'relative text-left',
+                visual === 'elevated'
+                  ? 'rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.28)] ring-1 ring-slate-950/[0.04]'
+                  : 'rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-xl'
+              )}
+            >
               {pos.placement === 'below' && (
                 <>
                   <div
@@ -188,7 +201,7 @@ function InsightHoverTooltip({
                       transform: 'translate(-50%, -100%)',
                       borderLeft: '7px solid transparent',
                       borderRight: '7px solid transparent',
-                      borderBottom: '8px solid #e5e7eb'
+                      borderBottom: visual === 'elevated' ? '8px solid rgb(226 232 240 / 0.85)' : '8px solid #e5e7eb'
                     }}
                     aria-hidden
                   />
@@ -206,9 +219,65 @@ function InsightHoverTooltip({
                   />
                 </>
               )}
-              <div className="text-[11px] font-semibold leading-tight text-[#333333]">{title}</div>
-              {dateLabel ? (
-                <div className="mt-0.5 text-[10px] leading-snug text-gray-500">{dateLabel}</div>
+              {headerEnd ? (
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1 pr-1">
+                    <div
+                      className={cn(
+                        'font-semibold leading-tight',
+                        visual === 'elevated'
+                          ? 'text-[12px] tracking-tight text-slate-900'
+                          : 'text-[11px] text-[#333333]'
+                      )}
+                    >
+                      {title}
+                    </div>
+                    {dateLabel ? (
+                      <div
+                        className={cn(
+                          'mt-0.5 leading-snug',
+                          visual === 'elevated'
+                            ? 'text-[10px] font-medium text-slate-500'
+                            : 'text-[10px] text-gray-500'
+                        )}
+                      >
+                        {dateLabel}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 pt-px">{headerEnd}</div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className={cn(
+                      'font-semibold leading-tight',
+                      visual === 'elevated'
+                        ? 'text-[12px] tracking-tight text-slate-900'
+                        : 'text-[11px] text-[#333333]'
+                    )}
+                  >
+                    {title}
+                  </div>
+                  {dateLabel ? (
+                    <div
+                      className={cn(
+                        'leading-snug',
+                        visual === 'elevated'
+                          ? 'mt-0.5 text-[10px] font-medium text-slate-500'
+                          : 'mt-0.5 text-[10px] text-gray-500'
+                      )}
+                    >
+                      {dateLabel}
+                    </div>
+                  ) : null}
+                </>
+              )}
+              {visual === 'elevated' ? (
+                <div
+                  className="mt-2.5 h-px w-full bg-gradient-to-r from-transparent via-slate-200/90 to-transparent"
+                  aria-hidden
+                />
               ) : null}
               {body}
               {pos.placement === 'above' && (
@@ -221,7 +290,7 @@ function InsightHoverTooltip({
                       transform: 'translate(-50%, calc(100% - 1px))',
                       borderLeft: '7px solid transparent',
                       borderRight: '7px solid transparent',
-                      borderTop: '8px solid #e5e7eb'
+                      borderTop: visual === 'elevated' ? '8px solid rgb(226 232 240 / 0.85)' : '8px solid #e5e7eb'
                     }}
                     aria-hidden
                   />
@@ -258,83 +327,127 @@ function parityPillPercent(
   return Math.min(999, Math.round((Math.abs(channelRate - myRate) / myRate) * 100));
 }
 
-/** Parity callout: light card with status-colored accent — reads clearly on white tooltip panels. */
-function ParityStatusPill({ status, valuePercent }: { status: 'Win' | 'Meet' | 'Loss'; valuePercent: number }) {
-  const accent =
-    status === 'Loss'
-      ? 'bg-red-500'
-      : status === 'Win'
-        ? 'bg-emerald-500'
-        : 'bg-amber-500';
-  const statusText =
-    status === 'Loss' ? 'text-red-700' : status === 'Win' ? 'text-emerald-800' : 'text-amber-900';
-  const tint =
-    status === 'Loss'
-      ? 'from-red-50/90 to-white'
-      : status === 'Win'
-        ? 'from-emerald-50/80 to-white'
-        : 'from-amber-50/70 to-white';
+function ParityRateViolationBadgeIcon({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 12 : 14;
+  return (
+    <svg width={dim} height={dim} viewBox="0 0 16 16" fill="none" className="shrink-0" aria-hidden>
+      <circle cx="8" cy="8" r="7" stroke="#dc2626" strokeWidth="1.5" fill="none" />
+      <text x="8" y="11" textAnchor="middle" fontSize="10" fontWeight="600" fill="#dc2626">
+        R
+      </text>
+    </svg>
+  );
+}
 
+/** Header chip — flat surface, no gradients (reads cleaner at small sizes). */
+function ParityTooltipHeaderRateViolation() {
   return (
     <div
-      className={cn(
-        'mt-2.5 flex w-full max-w-full overflow-hidden rounded-lg border border-gray-200/90 bg-gradient-to-br shadow-[0_2px_8px_rgba(15,23,42,0.06)]',
-        tint
-      )}
       role="status"
+      aria-label="Rate violation"
+      title="Channel rate diverges from your benchmark beyond tolerance."
+      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-200/90 bg-rose-50 py-1 pl-1 pr-2.5 shadow-sm"
     >
-      <div className={cn('w-[3px] shrink-0 self-stretch', accent)} aria-hidden />
-      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-2.5 py-2">
-        <div className="min-w-0">
-          <div className="text-[8px] font-semibold uppercase tracking-[0.16em] text-gray-400">Parity</div>
-          <div className={cn('mt-0.5 text-[12px] font-bold leading-tight', statusText)}>{status}</div>
-        </div>
-        <div className="shrink-0 text-[14px] font-bold tabular-nums leading-none text-gray-900">{valuePercent}%</div>
-      </div>
+      <span
+        className="flex size-[15px] shrink-0 items-center justify-center rounded-full bg-rose-600 text-[8px] font-bold leading-none text-white"
+        aria-hidden
+      >
+        R
+      </span>
+      <span className="text-[10px] font-semibold leading-none tracking-tight text-rose-900">Rate violation</span>
     </div>
   );
 }
 
-/** Rate + dotted divider + rateplan within one parity tooltip group. */
-function ParityTooltipRatePlanPair({
-  rateLabel,
-  rateValue,
-  planLabel,
-  planValue,
-  showPlanSection = true
+/** Parity tab OTA cell — two-column rates + outcome strip (rate violation lives in tooltip header). */
+function ParityTooltipModernBody({
+  myRate,
+  channelRate,
+  channelSiteLabel,
+  yourPlan,
+  channelPlan,
+  showPlans,
+  status,
+  gapPct,
+  isLoss,
+  lossAmount,
+  lossPercent,
+  isWin,
+  winAmount,
+  winPercent
 }: {
-  rateLabel: string;
-  rateValue: ReactNode;
-  planLabel: string;
-  planValue: ReactNode;
-  /** When false, only the rate row is shown (filter is a specific plan — apple-to-apple). */
-  showPlanSection?: boolean;
+  myRate: number;
+  channelRate: number;
+  /** Shown under channel price (same role as Brand.com under your rate). */
+  channelSiteLabel: string;
+  yourPlan: string;
+  channelPlan: string;
+  showPlans: boolean;
+  status: 'Win' | 'Meet' | 'Loss';
+  gapPct: number;
+  isLoss: boolean;
+  lossAmount: number;
+  lossPercent: number;
+  isWin: boolean;
+  /** Channel rate − your rate when Win (favourable spread). */
+  winAmount: number;
+  winPercent: number;
 }) {
+  const statusChip =
+    status === 'Loss'
+      ? 'bg-rose-100 text-rose-900 ring-1 ring-rose-200/80'
+      : status === 'Win'
+        ? 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80'
+        : 'bg-amber-100 text-amber-950 ring-1 ring-amber-200/80';
+
   return (
-    <div>
-      <div className="flex justify-between gap-3 text-[10px] leading-snug">
-        <span className="shrink-0 text-gray-500">{rateLabel}</span>
-        <span className="max-w-[11rem] text-right font-medium tabular-nums text-[#333333]">{rateValue}</span>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-gradient-to-b from-slate-50 to-white p-2.5 shadow-sm ring-1 ring-slate-200/70">
+          <div className="text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">Your rate</div>
+          <div className="mt-0.5 text-[17px] font-semibold tabular-nums tracking-tight text-slate-900">€{myRate}</div>
+          <div className="text-[8px] font-medium text-slate-400">Brand.com</div>
+          {showPlans ? (
+            <p className="m-0 mt-1.5 border-t border-slate-200/70 pt-1.5 text-[10px] leading-snug text-slate-700 line-clamp-2">
+              {yourPlan}
+            </p>
+          ) : null}
+        </div>
+        <div className="rounded-xl bg-gradient-to-b from-slate-50 to-white p-2.5 shadow-sm ring-1 ring-slate-200/70">
+          <div className="text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">Channel</div>
+          <div className="mt-0.5 text-[17px] font-semibold tabular-nums tracking-tight text-slate-900">€{channelRate}</div>
+          <div className="line-clamp-1 text-[8px] font-medium text-slate-400">{channelSiteLabel}</div>
+          {showPlans ? (
+            <p className="m-0 mt-1.5 border-t border-slate-200/70 pt-1.5 text-[10px] leading-snug text-slate-700 line-clamp-2">
+              {channelPlan}
+            </p>
+          ) : null}
+        </div>
       </div>
-      {showPlanSection ? (
-        <>
-          <div
-            className="my-2 border-t border-dotted border-gray-300"
-            role="separator"
-          />
-          <div className="flex justify-between gap-3 text-[10px] leading-snug">
-            <span className="shrink-0 text-gray-500">{planLabel}</span>
-            <span className="max-w-[11rem] text-right font-medium text-[#333333] leading-snug">{planValue}</span>
-          </div>
-        </>
-      ) : null}
+
+      <div
+        className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200/70"
+        role="status"
+      >
+        <span className={cn('rounded-lg px-2.5 py-1 text-[11px] font-semibold', statusChip)}>{status}</span>
+        <span className="text-[11px] font-medium text-slate-600">
+          Gap <span className="tabular-nums font-semibold text-slate-900">{gapPct}%</span>
+        </span>
+        {isLoss ? (
+          <span className="ml-auto text-[12px] font-semibold tabular-nums text-rose-600">
+            €{lossAmount}{' '}
+            <span className="text-[11px] font-semibold text-rose-500/95">({lossPercent}%)</span>
+          </span>
+        ) : null}
+        {isWin && winAmount > 0 ? (
+          <span className="ml-auto text-[12px] font-semibold tabular-nums text-emerald-700">
+            €{winAmount}{' '}
+            <span className="text-[11px] font-semibold text-emerald-600/95">({winPercent}%)</span>
+          </span>
+        ) : null}
+      </div>
     </div>
   );
-}
-
-/** Separates “yours” vs channel blocks in parity tooltips (no boxes). */
-function ParityTooltipSectionsDivider() {
-  return <div className="my-2.5 border-t border-dotted border-gray-300" aria-hidden />;
 }
 
 /** Same as main chart panel (`RateCandlestickChart` onboarding blue on logo). */
@@ -360,33 +473,23 @@ function NavigatorYourRatesDisclaimer({ className }: { className?: string }) {
   );
 }
 
-/** Parity “Your Rates” column — premium benchmark chip, top-right of the sticky label cell. */
+/** Parity “Your Rates” sticky column — compact glass pill, top-right. */
 function ParityBenchmarkChip() {
   return (
-    <div
-      className="group/bench relative shrink-0"
+    <span
+      className="absolute right-2 top-2 z-[1] inline-flex items-center gap-1 rounded-full border border-white/90 bg-gradient-to-br from-white via-white to-sky-50/70 py-1 pl-1.5 pr-2 shadow-[0_2px_12px_rgba(14,116,194,0.14),inset_0_1px_0_rgba(255,255,255,0.9)] ring-1 ring-sky-500/20 backdrop-blur-sm"
       role="note"
       title="Your published rates are the benchmark for parity comparison across channels."
     >
-      <div className="absolute -inset-px rounded-lg bg-gradient-to-br from-[#2196F3]/20 via-[#42a5f5]/12 to-transparent opacity-0 blur-[2px] transition-opacity duration-300 group-hover/bench:opacity-100" aria-hidden />
-      <div
-        className={cn(
-          'relative flex items-center gap-1 rounded-lg border border-[#2196F3]/30',
-          'bg-gradient-to-br from-white/95 via-[#f8fbff] to-[#e3f2fd]/90',
-          'px-2 py-1 shadow-[0_2px_8px_-2px_rgba(25,118,210,0.22),inset_0_1px_0_0_rgba(255,255,255,0.85)]',
-          'ring-1 ring-white/80 backdrop-blur-[2px]'
-        )}
-      >
-        <span className="flex size-5 items-center justify-center rounded-md bg-[#2196F3]/10 shadow-inner shadow-[#1976D2]/10">
-          <Globe className="size-3 text-[#1565C0]" strokeWidth={2.25} aria-hidden />
-        </span>
-        <div className="flex flex-col gap-0 leading-none pr-0.5">
-          <span className="text-[8px] font-semibold uppercase tracking-[0.16em] text-[#1976D2]/90">Reference</span>
-          <span className="text-[10px] font-bold tracking-tight text-[#0d47a1]">Benchmark</span>
-        </div>
-      </div>
-      <span className="sr-only">Benchmark: your rates are the reference for parity comparison.</span>
-    </div>
+      <span
+        className="size-1.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 shadow-[0_0_10px_rgba(56,189,248,0.55)]"
+        aria-hidden
+      />
+      <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+        Benchmark
+      </span>
+      <span className="sr-only">: your rates are the reference for parity comparison.</span>
+    </span>
   );
 }
 
@@ -416,19 +519,19 @@ function ParityStatusLegendFooter({ className }: { className?: string }) {
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 sm:h-4 sm:w-4">
           <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.5" fill="none" />
           <text x="8" y="11" textAnchor="middle" fontSize="10" fontWeight="600" fill="#ef4444">
-            A
+            R
           </text>
         </svg>
-        <span className="text-[10px] text-[#666666] sm:text-[11px]">Availability Violation</span>
+        <span className="text-[10px] text-[#666666] sm:text-[11px]">Rate violation</span>
       </div>
       <div className="flex items-center gap-1.5">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 sm:h-4 sm:w-4">
           <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.5" fill="none" />
           <text x="8" y="11" textAnchor="middle" fontSize="10" fontWeight="600" fill="#ef4444">
-            R
+            A
           </text>
         </svg>
-        <span className="text-[10px] text-[#666666] sm:text-[11px]">Rate Variation</span>
+        <span className="text-[10px] text-[#666666] sm:text-[11px]">Availability violation</span>
       </div>
     </div>
   );
@@ -436,8 +539,6 @@ function ParityStatusLegendFooter({ className }: { className?: string }) {
 
 function CompetitorRateInsightCell({
   compRate,
-  yourRate,
-  avgCompset,
   inclusionPlanName,
   channelName,
   competitorName,
@@ -445,8 +546,6 @@ function CompetitorRateInsightCell({
   children
 }: {
   compRate: number | null;
-  yourRate: number;
-  avgCompset: number | null;
   inclusionPlanName: string;
   channelName: string;
   competitorName: string;
@@ -463,25 +562,17 @@ function CompetitorRateInsightCell({
       dateLabel={dateLabel}
       body={
         <dl className="m-0 mt-1.5 space-y-1.5 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-          <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-gray-500">Your Rates</dt>
-            <dd className="font-medium tabular-nums text-[#333333]">€{yourRate}</dd>
+          <div className="flex gap-3">
+            <dt className="shrink-0 text-gray-500">Rate</dt>
+            <dd className="min-w-0 flex-1 text-right font-medium tabular-nums text-[#333333]">€{compRate}</dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-gray-500">Avg compset</dt>
-            <dd className="font-medium tabular-nums text-[#333333]">
-              {avgCompset != null ? `€${avgCompset}` : '—'}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-3">
+          <div className="flex gap-3">
             <dt className="shrink-0 text-gray-500">Inclusion</dt>
-            <dd className="max-w-[150px] text-right text-[10px] font-medium text-[#333333]">
-              {inclusionPlanName}
-            </dd>
+            <dd className="min-w-0 flex-1 text-right font-medium text-[#333333]">{inclusionPlanName}</dd>
           </div>
-          <div className="flex justify-between gap-3">
+          <div className="flex gap-3">
             <dt className="shrink-0 text-gray-500">Channel</dt>
-            <dd className="max-w-[130px] text-right font-medium text-[#333333]">{channelName}</dd>
+            <dd className="min-w-0 flex-1 text-right font-medium text-[#333333]">{channelName}</dd>
           </div>
         </dl>
       }
@@ -491,13 +582,12 @@ function CompetitorRateInsightCell({
   );
 }
 
-/** Tooltip for the blue "Your Rates" row — same fields; one price under Your Rates. */
+/** Tooltip for the blue "Your Rates" row — rate under hover, inclusion, channel. */
 function YourRatesRowTooltipCell({
   roomTitle,
   dateLabel,
   yourRate,
   soldOut,
-  avgCompset,
   inclusionPlanName,
   channelName,
   children
@@ -506,7 +596,6 @@ function YourRatesRowTooltipCell({
   dateLabel: string;
   yourRate: number;
   soldOut: boolean;
-  avgCompset: number | null;
   inclusionPlanName: string;
   channelName: string;
   children: ReactNode;
@@ -518,25 +607,19 @@ function YourRatesRowTooltipCell({
       triggerClassName="relative flex min-h-[1.75rem] w-full min-w-0 items-center justify-center py-0.5"
       body={
         <dl className="m-0 mt-1.5 space-y-1.5 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-          <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-gray-500">Your Rates</dt>
-            <dd className="font-medium tabular-nums text-[#333333]">{soldOut ? '—' : `€${yourRate}`}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-gray-500">Avg compset</dt>
-            <dd className="font-medium tabular-nums text-[#333333]">
-              {avgCompset != null ? `€${avgCompset}` : '—'}
+          <div className="flex gap-3">
+            <dt className="shrink-0 text-gray-500">Rate</dt>
+            <dd className="min-w-0 flex-1 text-right font-medium tabular-nums text-[#333333]">
+              {soldOut ? '—' : `€${yourRate}`}
             </dd>
           </div>
-          <div className="flex justify-between gap-3">
+          <div className="flex gap-3">
             <dt className="shrink-0 text-gray-500">Inclusion</dt>
-            <dd className="max-w-[150px] text-right text-[10px] font-medium text-[#333333]">
-              {inclusionPlanName}
-            </dd>
+            <dd className="min-w-0 flex-1 text-right font-medium text-[#333333]">{inclusionPlanName}</dd>
           </div>
-          <div className="flex justify-between gap-3">
+          <div className="flex gap-3">
             <dt className="shrink-0 text-gray-500">Channel</dt>
-            <dd className="max-w-[130px] text-right font-medium text-[#333333]">{channelName}</dd>
+            <dd className="min-w-0 flex-1 text-right font-medium text-[#333333]">{channelName}</dd>
           </div>
         </dl>
       }
@@ -1145,7 +1228,6 @@ export function DetailedCompetitorModal({
                         }
                         yourRate={rate}
                         soldOut={soldOut}
-                        avgCompset={avgCompsetPerDate[idx]}
                         inclusionPlanName={resolveTooltipInclusionPlan(0, globalIdx)}
                         channelName={resolveTooltipChannel(0, globalIdx)}
                       >
@@ -1280,7 +1362,7 @@ export function DetailedCompetitorModal({
                             <td className="sticky left-0 z-20 border-r border-[#e0e0e0] bg-white px-4 py-3 text-[13px] text-[#333333] hover:bg-gray-50">
                               {competitor.name}
                             </td>
-                            {visibleRates.map((myRate, dateIdx) => {
+                            {visibleRates.map((_myRate, dateIdx) => {
                               const compRate = competitorRatesMatrix[dateIdx][compIdx];
                               const actualMinMax = actualMinMaxPerDate[dateIdx];
                               const isMaxRate =
@@ -1299,8 +1381,6 @@ export function DetailedCompetitorModal({
                                 >
                                   <CompetitorRateInsightCell
                                     compRate={compRate}
-                                    yourRate={myRate}
-                                    avgCompset={avgCompsetPerDate[dateIdx]}
                                     inclusionPlanName={resolveTooltipInclusionPlan(
                                       compIdx,
                                       dateOffset + dateIdx
@@ -1341,7 +1421,6 @@ export function DetailedCompetitorModal({
           {/* Parity Analysis Tab Content */}
           {activeTab === 'parity' && (
             <ParityAnalysisContent
-              roomTitle={roomType}
               visibleDates={visibleDates}
               visibleRates={visibleRates}
               dateOffset={dateOffset}
@@ -1383,7 +1462,6 @@ export function DetailedCompetitorModal({
 
 // Parity Analysis Component
 function ParityAnalysisContent({
-  roomTitle,
   visibleDates,
   visibleRates,
   dateOffset,
@@ -1392,17 +1470,15 @@ function ParityAnalysisContent({
   resolveParityYourRatePlan,
   showTooltipRatePlanNames
 }: {
-  roomTitle: string;
   visibleDates: Array<{ day: string; date: string; month: string }>;
   visibleRates: number[];
   dateOffset: number;
   getCompetitorRateForDate: (competitorIndex: number, dateIndex: number, myRate: number) => number | null;
   resolveParityCellRatePlan: (channelIdx: number, globalDateIdx: number) => string;
   resolveParityYourRatePlan: (globalDateIdx: number) => string;
-  /** When false, tooltips omit rate plan names (specific plan filter = apple-to-apple). */
+  /** When false, OTA rate tooltips omit rate plan names (specific plan filter = apple-to-apple). */
   showTooltipRatePlanNames: boolean;
 }) {
-  const yourPlanForAggregateRow = resolveParityYourRatePlan(dateOffset);
   // Channel names matching the screenshot structure
   const channelNames = [
     'MakeMyTrip',
@@ -1484,27 +1560,57 @@ function ParityAnalysisContent({
     return totalCount > 0 ? Math.round((goodCount / totalCount) * 100) : 0;
   };
 
+  /** Win/Meet/Loss mix and parity score (Win% + Meet%) across every channel × visible date with data. */
+  const overallParityDistribution = useMemo(() => {
+    let winCount = 0;
+    let meetCount = 0;
+    let lossCount = 0;
+    let totalCount = 0;
+
+    const channelCount = channelNames.length;
+    for (let channelIdx = 0; channelIdx < channelCount; channelIdx++) {
+      for (let dateIdx = 0; dateIdx < visibleRates.length; dateIdx++) {
+        const myRate = visibleRates[dateIdx];
+        const channelRate = getCompetitorRateForDate(channelIdx, dateOffset + dateIdx, myRate);
+        if (channelRate !== null && myRate > 0) {
+          totalCount++;
+          const status = getParityStatus(channelRate, myRate);
+          if (status === 'Win') winCount++;
+          else if (status === 'Meet') meetCount++;
+          else lossCount++;
+        }
+      }
+    }
+
+    const winPercent = totalCount > 0 ? (winCount / totalCount) * 100 : 0;
+    const meetPercent = totalCount > 0 ? (meetCount / totalCount) * 100 : 0;
+    const lossPercent = totalCount > 0 ? (lossCount / totalCount) * 100 : 0;
+    const parityScore = Math.round(winPercent + meetPercent);
+
+    return { winPercent, meetPercent, lossPercent, parityScore };
+  }, [channelNames.length, visibleRates, dateOffset, getCompetitorRateForDate]);
+
   // Determine cell display type
   const getCellDisplay = (channelRate: number | null, myRate: number, channelIdx: number, dateIdx: number) => {
     const seed1 = (channelIdx * 17 + dateIdx * 23) % 100;
 
     if (channelRate === null || myRate === 0) {
-      return { type: 'no-data', rate: null, status: null };
+      return { type: 'no-data' as const, rate: null, status: null };
     }
 
     const status = getParityStatus(channelRate, myRate);
 
     // Simulate OTA sold out on channel (green cell) — not a parity loss row
     if (seed1 < 15) {
-      return { type: 'sold-out', rate: channelRate, status };
+      return { type: 'sold-out' as const, rate: channelRate, status };
     }
 
-    // Every Loss uses red background — always show R badge on those cells
+    // R (rate violation) badge + header chip only on Loss — not Win or Meet
     if (status === 'Loss') {
-      return { type: 'rate-variation', rate: channelRate, status };
+      return { type: 'rate-variation' as const, rate: channelRate, status };
     }
 
-    return { type: 'normal', rate: channelRate, status };
+    return { type: 'normal' as const, rate: channelRate, status };
   };
 
   const parityTableMinWidthPx = 320 + 90 * visibleDates.length;
@@ -1553,48 +1659,61 @@ function ParityAnalysisContent({
         <tbody>
           {/* Overall parity % — first summary row under date headers */}
           <tr className="border-b border-[#d4d8de] bg-[#e2e5ea]">
-            <td
-              className="sticky left-0 z-[24] border-r border-[#d4d8de] bg-[#e2e5ea] px-3 py-3.5 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]"
-              colSpan={3}
-            >
-              <div className="text-left text-[11px] font-semibold text-[#333333]">Overall Parity %</div>
+            <td className="sticky left-0 z-[24] border-r border-[#d4d8de] bg-[#e2e5ea] px-3 py-3.5 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+              <div className="text-left text-[13px] font-semibold leading-tight text-[#333333]">Overall Parity %</div>
             </td>
-            {visibleDates.map((date, idx) => {
+            <td className="border-r border-[#d4d8de] bg-[#e2e5ea] px-2 py-3.5">
+              <div className="flex h-6 overflow-hidden rounded border border-[#c8ccd2]">
+                {overallParityDistribution.winPercent > 0 && (
+                  <div
+                    className="flex min-w-0 items-center justify-center bg-[#f97316]"
+                    style={{ width: `${overallParityDistribution.winPercent}%` }}
+                  >
+                    {overallParityDistribution.winPercent >= 10 && (
+                      <span className="text-[10px] font-semibold tabular-nums text-white">
+                        {Math.round(overallParityDistribution.winPercent)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+                {overallParityDistribution.meetPercent > 0 && (
+                  <div
+                    className="flex min-w-0 items-center justify-center bg-[#22c55e]"
+                    style={{ width: `${overallParityDistribution.meetPercent}%` }}
+                  >
+                    {overallParityDistribution.meetPercent >= 10 && (
+                      <span className="text-[10px] font-semibold tabular-nums text-white">
+                        {Math.round(overallParityDistribution.meetPercent)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+                {overallParityDistribution.lossPercent > 0 && (
+                  <div
+                    className="flex min-w-0 items-center justify-center bg-[#ef4444]"
+                    style={{ width: `${overallParityDistribution.lossPercent}%` }}
+                  >
+                    {overallParityDistribution.lossPercent >= 10 && (
+                      <span className="text-[10px] font-semibold tabular-nums text-white">
+                        {Math.round(overallParityDistribution.lossPercent)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </td>
+            <td className="border-r border-[#d4d8de] bg-[#e2e5ea] px-2 py-3.5 text-center">
+              <div className="text-[13px] font-semibold tabular-nums text-[#333333]">
+                {overallParityDistribution.parityScore}%
+              </div>
+            </td>
+            {visibleDates.map((_, idx) => {
               const parityPercent = getDateParityPercentage(idx);
-              const myRate = visibleRates[idx];
-              const dateLabel = formatInsightDate(date);
               return (
                 <td key={idx} className="px-2 py-3.5 border-r border-[#d4d8de] bg-[#e2e5ea]">
-                  <InsightHoverTooltip
-                    title="Overall Parity %"
-                    dateLabel={dateLabel}
-                    panelWidth={280}
-                    estimatedHeight={300}
-                    triggerClassName="relative flex min-h-[1.75rem] w-full min-w-0 items-center justify-center py-0.5"
-                    body={
-                      <div className="mt-1.5 space-y-2 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-                        <div className="flex justify-between gap-3">
-                          <span className="shrink-0 text-gray-500">Overall parity</span>
-                          <span className="font-semibold tabular-nums text-[#333333]">{parityPercent}%</span>
-                        </div>
-                        <ParityTooltipRatePlanPair
-                          rateLabel="Your rate"
-                          rateValue={myRate > 0 ? `€${myRate}` : '—'}
-                          planLabel="Your Rateplan"
-                          planValue={resolveParityYourRatePlan(dateOffset + idx)}
-                          showPlanSection={showTooltipRatePlanNames}
-                        />
-                        <p className="m-0 text-[9px] leading-snug text-gray-500">
-                          Share of channels where your rate wins or meets parity vs. their published rate for this stay
-                          date.
-                        </p>
-                      </div>
-                    }
-                  >
-                    <div className="text-[12px] text-[#333333] font-semibold text-center">
-                      {parityPercent}%
-                    </div>
-                  </InsightHoverTooltip>
+                  <div className="text-center text-[13px] font-semibold tabular-nums text-[#333333]">
+                    {parityPercent}%
+                  </div>
                 </td>
               );
             })}
@@ -1602,49 +1721,27 @@ function ParityAnalysisContent({
 
           {/* Your Rates — below overall parity; blue band before channel rows */}
           <tr className="border-b-2 border-[#2196F3] bg-[#E3F2FD]">
-            <td className="sticky left-0 z-[24] align-top border-r border-[#e0e0e0] bg-[#E3F2FD] px-3 py-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
-              <div className="flex min-w-0 items-start justify-between gap-2">
-                <span className="min-w-0 max-w-[min(100%,11rem)] pt-0.5 text-[13px] font-bold leading-tight text-[#333333]">
-                  Your Rates
-                </span>
-                <ParityBenchmarkChip />
+            <td className="relative sticky left-0 z-[24] align-top border-r border-[#e0e0e0] bg-[#E3F2FD] px-3 py-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+              <ParityBenchmarkChip />
+              <div className="min-w-0 max-w-[min(100%,14rem)] pr-[5.25rem]">
+                <div className="text-[13px] font-bold leading-tight text-[#333333]">Your Rates</div>
+                <p className="m-0 mt-0.5 text-[10px] font-normal leading-snug text-[#5c6c7c]">Brand.com</p>
               </div>
             </td>
             <td className="px-2 py-3.5 border-r border-[#e0e0e0] bg-[#E3F2FD]" colSpan={2}>
               {/* Empty cells for Win/Meet/Loss and Parity Score columns */}
             </td>
             {visibleRates.map((rate, idx) => {
-              const date = visibleDates[idx];
-              const dateLabel = date ? formatInsightDate(date) : '';
               return (
                 <td
                   key={idx}
                   className="px-2 py-3.5 text-center text-[13px] font-semibold border-r border-[#e0e0e0] bg-[#E3F2FD]"
                 >
-                  <InsightHoverTooltip
-                    title={roomTitle}
-                    dateLabel={dateLabel}
-                    panelWidth={280}
-                    estimatedHeight={280}
-                    triggerClassName="relative flex min-h-[1.75rem] w-full min-w-0 items-center justify-center py-0.5"
-                    body={
-                      <div className="mt-1.5 border-t border-gray-100 pt-1.5">
-                        <ParityTooltipRatePlanPair
-                          rateLabel="Your rate"
-                          rateValue={rate === 0 || !rate ? '—' : `€${rate}`}
-                          planLabel="Your Rateplan"
-                          planValue={resolveParityYourRatePlan(dateOffset + idx)}
-                          showPlanSection={showTooltipRatePlanNames}
-                        />
-                      </div>
-                    }
-                  >
-                    {rate === 0 || !rate ? (
-                      <span className="text-gray-400 font-normal">Sold Out</span>
-                    ) : (
-                      <span className="text-[#333333]">€{rate}</span>
-                    )}
-                  </InsightHoverTooltip>
+                  {rate === 0 || !rate ? (
+                    <span className="text-gray-400 font-normal">Sold Out</span>
+                  ) : (
+                    <span className="text-[#333333]">€{rate}</span>
+                  )}
                 </td>
               );
             })}
@@ -1714,39 +1811,7 @@ function ParityAnalysisContent({
 
                 {/* Parity Score */}
                 <td className="px-2 py-4 text-center border-r border-[#e0e0e0] bg-white">
-                  <InsightHoverTooltip
-                    title={channelName}
-                    dateLabel="Parity score · visible range"
-                    panelWidth={280}
-                    estimatedHeight={260}
-                    triggerClassName="relative flex min-h-[1.5rem] w-full min-w-0 items-center justify-center py-0.5"
-                    body={
-                      <div className="mt-1.5 space-y-2 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-                        <div className="flex justify-between gap-3">
-                          <span className="shrink-0 text-gray-500">Parity score</span>
-                          <span className="font-semibold tabular-nums text-[#333333]">{distribution.parityScore}%</span>
-                        </div>
-                        <p className="m-0 text-[9px] leading-snug text-gray-500">
-                          Win% + Meet% across the dates shown vs. your published rate each day.
-                        </p>
-                        {showTooltipRatePlanNames ? (
-                          <>
-                            <ParityTooltipSectionsDivider />
-                            <div className="flex justify-between gap-3 text-[10px] leading-snug">
-                              <span className="shrink-0 text-gray-500">Your Rateplan</span>
-                              <span className="max-w-[11rem] text-right font-medium text-[#333333] leading-snug">
-                                {yourPlanForAggregateRow}
-                              </span>
-                            </div>
-                          </>
-                        ) : null}
-                      </div>
-                    }
-                  >
-                    <div className="text-[11px] font-semibold text-[#333333]">
-                      {distribution.parityScore}%
-                    </div>
-                  </InsightHoverTooltip>
+                  <div className="text-[11px] font-semibold text-[#333333]">{distribution.parityScore}%</div>
                 </td>
 
                 {/* Date Cells */}
@@ -1765,29 +1830,7 @@ function ParityAnalysisContent({
                         key={dateIdx}
                         className="px-2 py-4 text-center border-r border-[#e0e0e0] bg-gray-50"
                       >
-                        <InsightHoverTooltip
-                          title={channelName}
-                          dateLabel={dateLabel}
-                          panelWidth={280}
-                          estimatedHeight={300}
-                          triggerClassName="relative flex min-h-[1.5rem] w-full min-w-0 items-center justify-center py-0.5"
-                          body={
-                            <div className="mt-1.5 space-y-2 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-                              <p className="m-0 text-gray-600">No published rate for this channel on this date.</p>
-                              {myRate > 0 ? (
-                                <ParityTooltipRatePlanPair
-                                  rateLabel="Your rate"
-                                  rateValue={`€${myRate}`}
-                                  planLabel="Your Rateplan"
-                                  planValue={resolveParityYourRatePlan(dateOffset + dateIdx)}
-                                  showPlanSection={showTooltipRatePlanNames}
-                                />
-                              ) : null}
-                            </div>
-                          }
-                        >
-                          <span className="text-[11px] text-gray-400">—</span>
-                        </InsightHoverTooltip>
+                        <span className="text-[11px] text-gray-400">—</span>
                       </td>
                     );
                   }
@@ -1799,54 +1842,12 @@ function ParityAnalysisContent({
                         key={dateIdx}
                         className="px-2 py-4 text-center border-r border-[#e0e0e0] bg-[#dcfce7]"
                       >
-                        <InsightHoverTooltip
-                          title={channelName}
-                          dateLabel={dateLabel}
-                          panelWidth={280}
-                          estimatedHeight={360}
-                          triggerClassName="relative flex min-h-[1.5rem] w-full min-w-0 items-center justify-center py-0.5"
-                          body={
-                            <div className="mt-1.5 space-y-2 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-                              <p className="m-0 text-gray-600">This channel shows as sold out for this stay date.</p>
-                              <ParityTooltipRatePlanPair
-                                rateLabel="Your rate"
-                                rateValue={myRate > 0 ? `€${myRate}` : '—'}
-                                planLabel="Your Rateplan"
-                                planValue={resolveParityYourRatePlan(dateOffset + dateIdx)}
-                                showPlanSection={showTooltipRatePlanNames}
-                              />
-                              {cellDisplay.rate != null ? (
-                                <>
-                                  <ParityTooltipSectionsDivider />
-                                  <ParityTooltipRatePlanPair
-                                    rateLabel="Channel rate"
-                                    rateValue={`€${cellDisplay.rate}`}
-                                    planLabel="Channel Rateplan"
-                                    planValue={channelRatePlan}
-                                    showPlanSection={showTooltipRatePlanNames}
-                                  />
-                                </>
-                              ) : showTooltipRatePlanNames ? (
-                                <>
-                                  <ParityTooltipSectionsDivider />
-                                  <div className="flex justify-between gap-3 text-[10px] leading-snug">
-                                    <span className="shrink-0 text-gray-500">Channel Rateplan</span>
-                                    <span className="max-w-[11rem] text-right font-medium text-[#333333] leading-snug">
-                                      {channelRatePlan}
-                                    </span>
-                                  </div>
-                                </>
-                              ) : null}
-                            </div>
-                          }
-                        >
-                          <span className="text-[12px] font-semibold text-[#166534]">Sold Out</span>
-                        </InsightHoverTooltip>
+                        <span className="text-[12px] font-semibold text-[#166534]">Sold Out</span>
                       </td>
                     );
                   }
 
-                  // For all other types (rate-variation with R badge, normal) - show rates with color coding
+                  // rate-variation (R) only when parity status is Loss
                   const isWin = cellDisplay.status === 'Win';
                   const isMeet = cellDisplay.status === 'Meet';
                   const isLoss = cellDisplay.status === 'Loss';
@@ -1857,9 +1858,21 @@ function ParityAnalysisContent({
                   const lossPercent =
                     isLoss && cellDisplay.rate ? Math.round(((myRate - cellDisplay.rate) / cellDisplay.rate) * 100) : 0;
 
+                  const winAmount =
+                    isWin && cellDisplay.rate != null ? Math.max(0, cellDisplay.rate - myRate) : 0;
+                  const winPercent =
+                    isWin && cellDisplay.rate && cellDisplay.rate > 0
+                      ? Math.min(
+                          999,
+                          Math.round(((cellDisplay.rate - myRate) / cellDisplay.rate) * 100)
+                        )
+                      : 0;
+
                   const status = cellDisplay.status as 'Win' | 'Meet' | 'Loss';
                   const pillPct =
                     cellDisplay.rate != null ? parityPillPercent(myRate, cellDisplay.rate, status) : 0;
+
+                  const showRateViolationNote = cellDisplay.type === 'rate-variation';
 
                   return (
                     <td
@@ -1870,50 +1883,35 @@ function ParityAnalysisContent({
                       <InsightHoverTooltip
                         title={channelName}
                         dateLabel={dateLabel}
-                        panelWidth={280}
-                        estimatedHeight={400}
+                        panelWidth={300}
+                        estimatedHeight={220}
+                        visual="elevated"
+                        headerEnd={showRateViolationNote ? <ParityTooltipHeaderRateViolation /> : undefined}
                         triggerClassName="relative flex min-h-[1.5rem] w-full min-w-0 items-center justify-center py-0.5"
                         body={
-                          <>
-                            <div className="mt-1.5 border-t border-gray-100 pt-1.5 text-[10px] leading-snug text-gray-700">
-                              <ParityTooltipRatePlanPair
-                                rateLabel="Your rate"
-                                rateValue={`€${myRate}`}
-                                planLabel="Your Rateplan"
-                                planValue={resolveParityYourRatePlan(globalDateIdx)}
-                                showPlanSection={showTooltipRatePlanNames}
-                              />
-                              <ParityTooltipSectionsDivider />
-                              <ParityTooltipRatePlanPair
-                                rateLabel="Channel rate"
-                                rateValue={`€${cellDisplay.rate}`}
-                                planLabel="Channel Rateplan"
-                                planValue={channelRatePlan}
-                                showPlanSection={showTooltipRatePlanNames}
-                              />
-                            </div>
-                            <ParityStatusPill status={status} valuePercent={pillPct} />
-                            {isLoss ? (
-                              <div className="mt-2 flex justify-between gap-3 border-t border-gray-100 pt-1.5 text-[10px]">
-                                <span className="shrink-0 text-gray-500">Loss</span>
-                                <span className="font-semibold text-red-600">
-                                  €{lossAmount} ({lossPercent}%)
-                                </span>
-                              </div>
-                            ) : null}
-                          </>
+                          <ParityTooltipModernBody
+                            myRate={myRate}
+                            channelRate={cellDisplay.rate}
+                            channelSiteLabel={channelName}
+                            yourPlan={resolveParityYourRatePlan(globalDateIdx)}
+                            channelPlan={channelRatePlan}
+                            showPlans={showTooltipRatePlanNames}
+                            status={status}
+                            gapPct={pillPct}
+                            isLoss={isLoss}
+                            lossAmount={lossAmount}
+                            lossPercent={lossPercent}
+                            isWin={isWin}
+                            winAmount={winAmount}
+                            winPercent={winPercent}
+                          />
                         }
                       >
                         <div className="flex items-center justify-center gap-1">
                           <span className="text-[13px] font-semibold" style={{ color: textColor }}>
                             €{cellDisplay.rate}
                           </span>
-                          {cellDisplay.type === 'rate-variation' && (
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                              <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.5" fill="none"/>
-                              <text x="8" y="11" textAnchor="middle" fontSize="10" fontWeight="600" fill="#ef4444">R</text>
-                            </svg>
-                          )}
+                          {cellDisplay.type === 'rate-variation' ? <ParityRateViolationBadgeIcon /> : null}
                         </div>
                       </InsightHoverTooltip>
                     </td>

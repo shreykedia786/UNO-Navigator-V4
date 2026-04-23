@@ -3,3 +3,18 @@
 body {
   font-family: 'Roboto', sans-serif;
 }
+
+/**
+ * Top promo strips above the header — Charter (ships with macOS/iOS; Bitstream Charter on some desktops).
+ * Falls back to transitional serifs when Charter is not installed.
+ */
+.navigator-top-strip {
+  font-family:
+    Charter,
+    'Bitstream Charter',
+    'Sitka Text',
+    Cambria,
+    Georgia,
+    'Times New Roman',
+    serif;
+}
